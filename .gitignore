@@ -1,0 +1,16 @@
+
+*.db
+
+__pycache__/datetime_modifications.cpython-310.pyc
+
+__pycache__/index.cpython-310.pyc
+
+__pycache__/run_query.cpython-310.pyc
+
+.idea/misc.xml
+
+.idea/PressureGUI.iml
+
+__pycache__/
+
+.idea/

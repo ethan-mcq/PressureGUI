@@ -14,87 +14,20 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import sqlite3
 from run_query import get_pressure, get_discharge
+from layout import layout
 
 # Declare the database file name here
-db_name = "/Users/ethanmcquhae/Desktop/copy.db"
+db_name = "copy.db"
 
 # app = Dash(external_stylesheets=[dbc.themes.FLATLY])
 app = DashProxy(external_stylesheets=[dbc.themes.FLATLY],
                 prevent_initial_callbacks=True, transforms=[MultiplexerTransform()])
 
-app.layout = dbc.Container([
-    dcc.Store(id='memory-output'),
-    dcc.Store(id='updated-table'),
-    dbc.Row([
-        dbc.Col(
-            dbc.Card([
-                html.H2("Abbott Lab GUI"),
-                html.H5("Coolness overload")
-            ], body="true", color="light"), width={"size": 10, "offset": 1})
-    ]),
-    html.Hr(),
-    dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                html.H5("Run Site Query"),
-                html.P("Site ID:"),
-                dcc.Dropdown(
-                    options=['BEN', 'BLI', 'BSL', 'CLE', 'CRB', 'DAI', 'DFF', 'DFL', 'DFM', 'DFU', 'HCL',
-                             'HCN', 'HCS', 'IND', 'LAK', 'LDF', 'MIT', 'NEB', 'PBC', 'SBL', 'SFL', 'SHE',
-                             'SOL', 'STR', 'TCU', 'TIE', 'WAN'],
-                    value='BEN',
-                    id='site_id',
-                    style={'display': 'inline-block', "margin": "5px"}),
-                dbc.Button("Query Site", id="query", color="primary",
-                           style={'display': 'inline-block', "margin": "5px"},
-                           n_clicks=0)
-            ], body="true", color="light"),
-            html.Hr(),
-            dbc.Card([
-                html.H5("Make Changes to Selected Data"),
-                dbc.Button("Delete", id="delete", color="primary",
-                           style={'display': 'inline-block', "margin": "5px"},
-                           n_clicks=0),
-                html.P("Move:"),
-                dcc.Input(id="move", type="number", placeholder=""),
-                html.P("Expand/Compress:"),
-                dcc.Input(id="expcomp", type="number", placeholder=""),
-                dbc.Button("Make Changes", id="makeChanges", color="primary",
-                           style={'display': 'inline-block', "margin": "5px"},
-                           n_clicks=0),
-                dbc.Button("Export Data", id="exportDF", color="primary",
-                           style={'display': 'inline-block', "margin": "5px"},
-                           n_clicks=0),
-            ], body="true", color="light")
-        ], width=2),
-        dbc.Col(
-            dbc.Card(
-                dcc.Graph(id='indicator-graphic'), body='True', color="light"), width=10)
-    ]),
-    html.Hr(),
-    dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                dcc.Markdown("""
-                    **Click Data**
-
-                    Click on a point from the graph to display more about that observation.
-                """),
-                html.Pre(id='selected'),
-            ], body="true", color="light")
-        ], width=2),
-        dbc.Col([
-            dbc.Card([html.Div(id="update-table"),
-                      ], body="true", color="light")
-        ], width=10)
-    ])
-])
+app.layout = layout
 
 
 @app.callback(
     Output('memory-output', 'data'),
-    Output('indicator-graphic', 'figure'),
-    Output('update-table', 'children'),
     Input('query', 'n_clicks'),
     State('site_id', 'value'))
 def main_query(n_clicks, site_id):
@@ -115,18 +48,8 @@ def main_query(n_clicks, site_id):
     table.dropna(subset=['pressure_hobo'], inplace=True)
     table.drop('index', axis=1, inplace=True)
 
-    figure = px.scatter(pressure_data, x=pressure_data.datetime, y=pressure_data.pressure_hobo,
-                        color=pressure_data.batch_id)
-
     data = table.to_json()
-    return data, figure, html.Div(
-        [
-            dash_table.DataTable(
-                data=table.to_dict('rows'),
-                columns=[{'id': x, 'name': x} for x in table.columns],
-            )
-        ]
-    )
+    return data
 
 
 @app.callback(
@@ -140,7 +63,7 @@ def display_selected(clickData):
     Output('update-table', 'children'),
     Input('indicator-graphic', 'selectedData'),
     State('memory-output', 'data'),
-    State('updated-table', 'data'),)
+    State('updated-table', 'data'), )
 def display_selected_data(selectedData, data, updatedData):
     pressure_table = pd.read_json(data)
     if selectedData is not None:
@@ -169,6 +92,7 @@ def display_selected_data(selectedData, data, updatedData):
     else:
         pass
 
+
 def update_table_style(selectedData):
     points_selected = []
     for point in selectedData['points']:
@@ -178,23 +102,22 @@ def update_table_style(selectedData):
 
     return selected_styles
 
+
 @app.callback(
     Output('memory-output', 'data'),
-    Input('makeChanges', 'n_clicks'),
+    Input('shift_button', 'n_clicks'),
     State('memory-output', 'data'),
-    State('move', 'value'),
-    State('expcomp', 'value'),
+    State('history', 'data'),
+    State('shift_amount', 'value'),
     State('indicator-graphic', 'selectedData'))
-def move_selected_data(n_clicks, data, shift, expcomp, selectedData):
-    if n_clicks > 0 and (shift is not None or expcomp is not None) and selectedData is not None:
+def shift_selected_data(n_clicks, data, history, shift, selectedData):
+    if n_clicks > 0 and shift is not None and selectedData is not None:
         pressure_table = pd.read_json(data)
-        pressure_table = pd.DataFrame(pressure_table)
 
         date_selected = []
         pressure_selected = []
         for point in selectedData['points']:
             date_selected.append(point['x'])
-        for point in selectedData['points']:
             pressure_selected.append(point['y'])
 
         change_dict = {'datetime': date_selected, 'pressure_hobo': pressure_selected}
@@ -202,13 +125,8 @@ def move_selected_data(n_clicks, data, shift, expcomp, selectedData):
 
         if shift is not None:
             change_df['pressure_hobo'] = change_df['pressure_hobo'] + shift
-        if expcomp is not None:
-            change_df_mean = stat.mean(change_df['pressure_hobo'])
-            change_df['pressure_hobo'] = change_df['pressure_hobo'] - ((change_df['pressure_hobo'] - change_df_mean) * expcomp)
-
 
         change_df['datetime'] = pd.to_datetime(change_df['datetime'], format='%Y-%m-%d %H:%M:%S')
-
 
         joined = pressure_table.merge(change_df, on='datetime', how='left')
         joined.pressure_hobo_y.fillna(joined.pressure_hobo_x, inplace=True)
@@ -220,41 +138,94 @@ def move_selected_data(n_clicks, data, shift, expcomp, selectedData):
     else:
         pass
 
+
+@app.callback(
+    Output('memory-output', 'data'),
+    Input('compress_button', 'n_clicks'),
+    State('memory-output', 'data'),
+    State('history', 'data'),
+    State('compression_factor', 'value'),
+    State('indicator-graphic', 'selectedData'))
+def compress_selected_data(n_clicks, data, history, expcomp, selectedData):
+    if n_clicks > 0 and expcomp is not None and selectedData is not None:
+        pressure_table = pd.read_json(data)
+
+        date_selected = []
+        pressure_selected = []
+        for point in selectedData['points']:
+            date_selected.append(point['x'])
+            pressure_selected.append(point['y'])
+
+        change_dict = {'datetime': date_selected, 'pressure_hobo': pressure_selected}
+        change_df = pd.DataFrame(change_dict)
+
+        if expcomp is not None:
+            change_df_mean = stat.mean(change_df['pressure_hobo'])
+            change_df['pressure_hobo'] = change_df['pressure_hobo'] - (
+                        (change_df['pressure_hobo'] - change_df_mean) * expcomp)
+
+        change_df['datetime'] = pd.to_datetime(change_df['datetime'], format='%Y-%m-%d %H:%M:%S')
+
+        joined = pressure_table.merge(change_df, on='datetime', how='left')
+        joined.pressure_hobo_y.fillna(joined.pressure_hobo_x, inplace=True)
+        del joined['pressure_hobo_x']
+
+        joined = joined.rename({'pressure_hobo_y': 'pressure_hobo'}, axis=1)
+
+        return joined.to_json()
+    else:
+        pass
+
+
 @app.callback(
     Output('memory-output', 'data'),
     Input('delete', 'n_clicks'),
-    State('indicator-graphic', 'clickData'),
+    State('indicator-graphic', 'selectedData'),
     State('memory-output', 'data'))
-def deleteButton(n_clicks, selection, data):
+def delete_button(n_clicks, selection, data):
+    # Read in dataframe from local JSON store.
     df = pd.read_json(data)
-    matched_points = []
+
     if selection is not None:
         datetimes_selected = []
         pressures_selected = []
+        # Add points from the selection
         for point in selection['points']:
             datetimes_selected.append(point['x'])
             pressures_selected.append(point['y'])
+        # Search data for datetime matches
         datetimes_series = df['datetime'].isin(datetimes_selected)
         matched_datetimes = df[datetimes_series]
+        # Search datetime matches for y-value matches
         pressures_series = matched_datetimes['pressure_hobo'].isin(pressures_selected);
         matched_points = matched_datetimes[pressures_series]
 
-    df.drop(matched_points.index, axis=0, inplace=True)
+        # remove the data points from the data frame
+        df.drop(matched_points.index, axis=0, inplace=True)
 
-    return df.to_json()
+        # Save the data into the Local json store and trigger the graph update.
+        return df.to_json()
+    else:
+        pass
+
 
 @app.callback(
     Input('memory-output', 'data'),
     Output('indicator-graphic', 'figure'),
     Output('update-table', 'children'))
-def updateOnNewData(data):
+def update_on_new_data(data):
+    # Read in dataframe from JSON
     df = pd.read_json(data)
+
+    # Convert batch_id to strings
     df['batch_id'] = df['batch_id'].apply(lambda x: str(x))
 
+    # Create a scatterplot figure from the dataframe
     figure = px.scatter(df, x=df.datetime, y=df.pressure_hobo,
                         color=df.batch_id)
 
-    return figure, html.Div(
+    # create a DashTable from the data
+    table = html.Div(
         [
             dash_table.DataTable(
                 data=df.to_dict('rows'),
@@ -263,22 +234,21 @@ def updateOnNewData(data):
         ]
     )
 
+    # return objects into the graph and table
+    return figure, table
+
+
 @app.callback(
-    Output('memory-output', 'data'),
+    Output('download-csv', 'data'),
     Input('exportDF', 'n_clicks'),
     State('memory-output', 'data'),
-    State('site_id', 'value'))
-def export(n_clicks, data, siteID):
+    State('export_filename', 'value'),
+    prevent_initial_call=True
+)
+def export(n_clicks, data, filename):
     if data is not None:
         pressure_table = pd.read_json(data)
-        pressure_table = pd.DataFrame(pressure_table)
-
-        path = Path.joinpath(Path.home(), 'Downloads', 'PressureData')
-        path.mkdir(parents=True, exist_ok=True)
-        siteID_file_name = Path.joinpath(path, f'{siteID}.csv')
-        pressure_table.to_csv(siteID_file_name, sep=",")
-
-        return pressure_table.to_json()
+        return dcc.send_data_frame(pressure_table.to_csv, filename)
 
 if __name__ == '__main__':
     app.run_server(debug=True)

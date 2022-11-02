@@ -27,6 +27,27 @@ app.layout = layout
 
 
 @app.callback(
+    Output('mean', 'children'),
+    Output('variance', 'children'),
+    Input('indicator-graphic', 'selectedData'))
+def display_selected(selection):
+    print(selection)
+
+    if selection is not None:
+        pressures_selected = []
+        for point in selection['points']:
+            pressures_selected.append(point['y'])
+
+        pressures_selected = pd.DataFrame(pressures_selected)
+
+        return pressures_selected.mean(), pressures_selected.var()
+
+    else:
+        return 0, 0
+
+
+
+@app.callback(
     Output('memory-output', 'data'),
     Input('query', 'n_clicks'),
     State('site_id', 'value'))
@@ -52,18 +73,18 @@ def main_query(n_clicks, site_id):
     return data
 
 
-@app.callback(
-    Output('selected', 'children'),
-    Input('indicator-graphic', 'clickData'))
-def display_selected(clickData):
-    return json.dumps(clickData, indent=1)
+# @app.callback(
+#     Output('selected', 'children'),
+#     Input('indicator-graphic', 'clickData'))
+# def display_selected(clickData):
+#     return json.dumps(clickData, indent=1)
 
 
 @app.callback(
     Output('update-table', 'children'),
     Input('indicator-graphic', 'selectedData'),
     State('memory-output', 'data'),
-    State('updated-table', 'data'), )
+    State('updated-table', 'data'),)
 def display_selected_data(selectedData, data, updatedData):
     pressure_table = pd.read_json(data)
     if selectedData is not None:
@@ -92,7 +113,6 @@ def display_selected_data(selectedData, data, updatedData):
     else:
         pass
 
-
 def update_table_style(selectedData):
     points_selected = []
     for point in selectedData['points']:
@@ -101,7 +121,6 @@ def update_table_style(selectedData):
                         'backgroundColor': 'pink'} for i in points_selected]
 
     return selected_styles
-
 
 @app.callback(
     Output('memory-output', 'data'),
@@ -125,40 +144,6 @@ def shift_selected_data(n_clicks, data, history, shift, selectedData):
 
         if shift is not None:
             change_df['pressure_hobo'] = change_df['pressure_hobo'] + shift
-
-        change_df['datetime'] = pd.to_datetime(change_df['datetime'], format='%Y-%m-%d %H:%M:%S')
-
-        joined = pressure_table.merge(change_df, on='datetime', how='left')
-        joined.pressure_hobo_y.fillna(joined.pressure_hobo_x, inplace=True)
-        del joined['pressure_hobo_x']
-
-        joined = joined.rename({'pressure_hobo_y': 'pressure_hobo'}, axis=1)
-
-        return joined.to_json()
-    else:
-        pass
-
-
-@app.callback(
-    Output('memory-output', 'data'),
-    Input('compress_button', 'n_clicks'),
-    State('memory-output', 'data'),
-    State('history', 'data'),
-    State('compression_factor', 'value'),
-    State('indicator-graphic', 'selectedData'))
-def compress_selected_data(n_clicks, data, history, expcomp, selectedData):
-    if n_clicks > 0 and expcomp is not None and selectedData is not None:
-        pressure_table = pd.read_json(data)
-
-        date_selected = []
-        pressure_selected = []
-        for point in selectedData['points']:
-            date_selected.append(point['x'])
-            pressure_selected.append(point['y'])
-
-        change_dict = {'datetime': date_selected, 'pressure_hobo': pressure_selected}
-        change_df = pd.DataFrame(change_dict)
-
         if expcomp is not None:
             change_df_mean = stat.mean(change_df['pressure_hobo'])
             change_df['pressure_hobo'] = change_df['pressure_hobo'] - (
@@ -175,7 +160,6 @@ def compress_selected_data(n_clicks, data, history, expcomp, selectedData):
         return joined.to_json()
     else:
         pass
-
 
 @app.callback(
     Output('memory-output', 'data'),

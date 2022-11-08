@@ -14,13 +14,14 @@ def get_pressure(cursor, site_id):
         "index": indexList,
         "datetime": dateList
     }
-    pressure_dict = {"batch_id": [], "datetime": [], "pressure_hobo": [], "index": []}
+    pressure_dict = {"batch_id": [], "datetime": [], "pressure_hobo": [], "temperature_hobo": [], "index": []}
 
     for item in result:
         batch_id = item[4]
         date = item[0]
         time = item[1]
         pressure = item[2]
+        temp = item[3]
         date = date.split(" ")[0]
         datetime = date + " " + time
 
@@ -34,6 +35,7 @@ def get_pressure(cursor, site_id):
         pressure_dict["batch_id"].append(batch_id)
         pressure_dict["datetime"].append(datetime)
         pressure_dict["pressure_hobo"].append(pressure)
+        pressure_dict["temperature_hobo"].append(temp)
         pressure_dict["index"].append(index)
 
 

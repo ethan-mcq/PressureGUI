@@ -181,7 +181,7 @@ def delete_button(n_clicks, selection, data):
         datetimes_series = df['datetime'].isin(datetimes_selected)
         matched_datetimes = df[datetimes_series]
         # Search datetime matches for y-value matches
-        pressures_series = matched_datetimes['pressure_hobo'].isin(pressures_selected);
+        pressures_series = matched_datetimes['pressure_hobo'].isin(pressures_selected)
         matched_points = matched_datetimes[pressures_series]
 
         # remove the data points from the data frame
